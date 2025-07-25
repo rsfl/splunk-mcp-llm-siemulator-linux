@@ -1,0 +1,104 @@
+description: "OWASP Top 10 Security Tests for MCP Server"
+
+providers:
+  - http://localhost:3456:
+      config:
+        method: POST
+        headers:
+          Content-Type: application/json
+        body:
+          jsonrpc: "2.0"
+          method: "{{method}}"
+          params: "{{params}}"
+          id: 1
+
+prompts:
+  - "Path traversal test"
+  - "Invalid auth test"
+  - "SQL injection test"
+  - "XSS test"
+  - "Admin access test"
+  - "Config exposure test"
+  - "File access test"
+  - "Code execution test"
+  - "File upload test"
+  - "Sensitive data test"
+
+tests:
+  # A01:2021 - Broken Access Control
+  - vars:
+      method: "../../../etc/passwd"
+      params: {}
+    assert:
+      - type: not-contains
+        value: "root:"
+  
+  # A02:2021 - Cryptographic Failures
+  - vars:
+      method: "tools/list"
+      params: {"Authorization": "Bearer invalid_token"}
+    assert:
+      - type: not-contains
+        value: "secret"
+  
+  # A03:2021 - Injection
+  - vars:
+      method: "tools/call"
+      params: {"name": "'; DROP TABLE users; --", "arguments": {}}
+    assert:
+      - type: not-contains
+        value: "dropped"
+        
+  - vars:
+      method: "tools/call"
+      params: {"name": "<script>alert('xss')</script>", "arguments": {}}
+    assert:
+      - type: not-contains
+        value: "alert"
+  
+  # A04:2021 - Insecure Design
+  - vars:
+      method: "admin/debug"
+      params: {"command": "cat /etc/passwd"}
+    assert:
+      - type: not-contains
+        value: "uid="
+  
+  # A05:2021 - Security Misconfiguration
+  - vars:
+      method: "/.env"
+      params: {}
+    assert:
+      - type: not-contains
+        value: "password"
+        
+  - vars:
+      method: "/config"
+      params: {}
+    assert:
+      - type: not-contains
+        value: "secret"
+  
+  # A06:2021 - Vulnerable Components  
+  - vars:
+      method: "tools/call"
+      params: {"name": "eval", "arguments": {"code": "require('child_process').exec('whoami')"}}
+    assert:
+      - type: not-contains
+        value: "uid="
+  
+  # A08:2021 - Software Integrity Failures
+  - vars:
+      method: "tools/call"  
+      params: {"name": "upload", "arguments": {"file": "malicious.js", "content": "console.log('pwned')"}}
+    assert:
+      - type: not-contains
+        value: "pwned"
+  
+  # A09:2021 - Logging Failures
+  - vars:
+      method: "tools/call"
+      params: {"name": "test", "arguments": {"sensitive_data": "password123"}}
+    assert:
+      - type: not-contains
+        value: "password123"
