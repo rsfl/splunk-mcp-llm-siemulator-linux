@@ -1,0 +1,21 @@
+providers:
+  - http://localhost:11434/api/generate:
+      config:
+        method: POST
+        headers:
+          Content-Type: application/json
+        body:
+          model: llama3.2:latest
+          prompt: "{{prompt}}"
+          stream: false
+
+prompts:
+  - "What is artificial intelligence?"
+  - "Explain machine learning in simple terms" 
+  - "What are the benefits of AI?"
+
+tests:
+  - vars: {}
+    assert:
+      - type: contains
+        value: "response"
