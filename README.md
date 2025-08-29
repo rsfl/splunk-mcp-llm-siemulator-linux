@@ -230,6 +230,7 @@ curl -X POST "http://localhost:8088/services/collector/event" \
 
 **6. Splunk Management API**
 - Ensure port 8089 is accessible: `curl -k -u admin:Password1 https://localhost:8089/services/data/indexes`
+-  May need to change to https in settings server settings enable https which will also need to be changed at the log-forwarder.sh
 
 ## 📁 Project Files
 
