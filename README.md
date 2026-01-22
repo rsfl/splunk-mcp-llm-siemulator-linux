@@ -1,24 +1,34 @@
-# SPLUNK MCP / LLM SIEMulator by Rod Soto - Linux Version
+# SPLUNK MCP / LLM SIEMulator by Rod Soto - Linux Version (v2)
 
 ## Docker-based AI Security Analysis Lab adapted for Linux Host
 
 ### Includes (ALL LOCAL)
 - **Ollama** (v0.3.12) - Local LLM inference server
-- **Ollama MCP Server** - Model Context Protocol integration  
-- **Promptfoo** - LLM evaluation and security testing
+- **Ollama MCP Server** - Model Context Protocol integration with JSON-RPC logging
+- **Promptfoo** - LLM evaluation and OWASP LLM Top 10 security testing
 - **OpenWebUI** - Web interface for AI interactions
 - **Splunk** - Security information and event management
-- **Log Forwarder** - Custom HEC-based log shipping solution
+- **Splunk Universal Forwarder** - Enterprise-grade log collection
+- **Technology Add-ons** - MCP TA and Ollama TA with CIM compliance
 
 ![splunkmcpllmsiemulator](https://github.com/user-attachments/assets/c3c04d04-9866-4c37-aba7-8cafbbefe7bb)
 
 ## MITRE ATLAS Focused Detection Development Lab
 This lab is designed for developing AI/ML security detections based on the [MITRE ATLAS framework](https://atlas.mitre.org/matrices/ATLAS).
 
-## 🚀 Quick Start
+## What's New in v2
+
+- **Splunk Universal Forwarder** - Replaced HEC-based log forwarding with enterprise UF
+- **Dedicated Indexes** - `mcp` for JSON-RPC data, `llm` for Ollama logs
+- **JSON-RPC Logging Proxy** - Clean MCP protocol capture via mcp-logger.js
+- **Technology Add-ons** - Auto-installed MCP TA and Ollama TA with field extractions
+- **OWASP LLM Top 10 Testing** - Comprehensive security test suite via Promptfoo
+- **Promptfoo GUI** - Web interface for viewing test results on port 15500
+
+## Quick Start
 
 ### Prerequisites
-- **Linux** (16 GB RAM + GPU recommended) Ubuntu 24.04.2 LTS \n \l was used to build this project
+- **Linux** (16 GB RAM + GPU recommended) Ubuntu 24.04.2 LTS was used to build this project
 - **Docker Engine** and **Docker Compose**
 - User must be in docker group: `sudo usermod -aG docker $USER`
 
@@ -26,66 +36,252 @@ This lab is designed for developing AI/ML security detections based on the [MITR
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd splunk-mcp-llm-siemulator_linux
+   cd splunk-mcp-llm-siemulator-linux
    ```
 
-2. **Start the environment** 
+2. **Set environment variable**
+   ```bash
+   export SPLUNK_HEC_TOKEN=f4e45204-7cfa-48b5-bfbe-95cf03dbcad7
+   ```
+
+3. **Start the environment**
    ```bash
    docker compose up -d
    ```
 
-3. **Wait for Splunk to fully initialize** (look for "Ansible playbook complete")
+4. **Wait for Splunk to fully initialize** (look for "Ansible playbook complete")
    ```bash
    docker compose logs -f splunk
    ```
 
-4. **Start the log forwarder** (CRITICAL for getting AI interaction logs)
+5. **Pull the LLM model** (first time only)
    ```bash
-   sudo ./log-forwarder.sh &
+   docker exec security-range-ollama ollama pull llama3.2:1b
    ```
 
-## 🔧 Log Forwarder - The Key Component
+## Architecture Overview
 
-The `log-forwarder.sh` script is **essential** for capturing AI interactions in Splunk. It:
+### v2 Log Collection Architecture
 
-- **Tails container logs** in real-time from ollama and MCP containers
-- **Forwards logs via HEC** to Splunk indexes 
-- **Handles JSON escaping** for proper log formatting
-- **Captures both prompts and responses** for security analysis
-
-Without this script, you won't see AI prompts and responses in Splunk.
-
-### Log Forwarder Features:
-```bash
-# Monitors both containers simultaneously
-docker logs -f security-range-ollama 2>&1 | while read line; do
-    send_to_hec "$line" "ollama_logs" "ollama:docker"
-done &
-
-docker logs -f security-range-ollama-mcp 2>&1 | while read line; do  
-    send_to_hec "$line" "mcp_logs" "mcp:docker"
-done &
 ```
-<img width="1853" height="889" alt="ollamalogssplunksiempulatorlinux" src="https://github.com/user-attachments/assets/9c0bbca6-1553-4baf-a5fa-b6b6117beceb" />
-<img width="1853" height="889" alt="mcplogssiemulatorlinux" src="https://github.com/user-attachments/assets/f604ea71-3d0c-4c79-9d19-e1fb86577cea" />
++------------------+     +------------------+     +------------------+
+|   Ollama LLM     |     |   MCP Server     |     |    Promptfoo     |
+|  (port 11434)    |     |  (port 3456)     |     |  (port 15500)    |
++--------+---------+     +--------+---------+     +------------------+
+         |                        |
+         v                        v
++------------------+     +------------------+
+| ollama.log       |     | mcp-jsonrpc.log  |
+| (./logs/)        |     | (./logs/)        |
++--------+---------+     +--------+---------+
+         |                        |
+         +----------+-------------+
+                    |
+                    v
+         +------------------+
+         | Splunk Universal |
+         |    Forwarder     |
+         +--------+---------+
+                  |
+                  v (TCP 9997)
+         +------------------+
+         |     Splunk       |
+         |  (port 8000)     |
+         +------------------+
+         | index=llm        |
+         | index=mcp        |
+         +------------------+
+```
 
+### Containers
 
+| Container | Purpose | Port |
+|-----------|---------|------|
+| security-range-splunk | Splunk Enterprise | 8000, 8088, 8089, 9997 |
+| security-range-ollama | Ollama LLM Server | 11434 |
+| security-range-ollama-mcp | MCP Server with JSON-RPC Proxy | 3456 |
+| security-range-splunk-uf | Splunk Universal Forwarder | - |
+| security-range-promptfoo | LLM Testing Framework | 15500 (host network) |
+| security-range-openwebui | Web Chat Interface | 3001 |
 
-## 📊 Access Points
-
-Once running, access these services:
+## Access Points
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **Splunk Web** | http://localhost:8000 | admin/Password1 |
 | **Ollama API** | http://localhost:11434 | No auth |
 | **MCP Service** | http://localhost:3456 | No auth |
-| **HEC Health** | http://localhost:8088/services/collector/health | No auth |
-| **Promptfoo** | http://localhost:3000 | No auth |
+| **Promptfoo GUI** | http://localhost:15500 | No auth |
 | **OpenWebUI** | http://localhost:3001 | No auth |
 | **Syslog Input** | udp://localhost:5514 | No auth |
 
-## 🧪 AI Security Testing
+## Splunk Indexes and Sourcetypes
+
+### Index: `mcp`
+- **Sourcetype**: `mcp:jsonrpc`
+- **Content**: JSON-RPC requests and responses from MCP server
+- **Fields**: `timestamp`, `direction`, `path`, `method`, `id`, `model`, `messages`
+
+### Index: `llm`
+- **Sourcetype**: `ollama:server`
+- **Content**: Ollama server logs including prompts and responses
+- **Fields**: `time`, `level`, `source`, `msg`, `model`, `prompt`, `total_duration`
+
+## AI Security Testing
+
+### OWASP LLM Top 10 Testing
+Run comprehensive security tests against the MCP server:
+
+```bash
+# Copy test config to Promptfoo container
+docker cp owasp-mcp-test.yaml security-range-promptfoo:/owasp-mcp-test.yaml
+
+# Run OWASP LLM Top 10 tests
+docker exec security-range-promptfoo promptfoo eval -c /owasp-mcp-test.yaml
+
+# View results in GUI
+docker exec -d security-range-promptfoo promptfoo view -p 15500 -y
+# Then open http://localhost:15500
+```
+
+### Test Categories (OWASP LLM Top 10)
+- **LLM01**: Prompt Injection
+- **LLM02**: Insecure Output Handling
+- **LLM03**: Training Data Poisoning
+- **LLM04**: Model Denial of Service
+- **LLM05**: Supply Chain Vulnerabilities
+- **LLM06**: Sensitive Information Disclosure
+- **LLM07**: Insecure Plugin Design
+- **LLM08**: Excessive Agency
+- **LLM09**: Overreliance
+- **LLM10**: Model Theft
+
+### Basic MCP Testing
+```bash
+# Copy basic test config
+docker cp mcp-test.yaml security-range-promptfoo:/mcp-test.yaml
+
+# Run basic tests
+docker exec security-range-promptfoo promptfoo eval -c /mcp-test.yaml
+```
+
+### Generate Sample Traffic
+```bash
+# Direct Ollama API call
+curl http://localhost:11434/api/generate -d '{"model":"llama3.2:1b","prompt":"Test security analysis","stream":false}'
+
+# Via MCP Server
+curl -X POST http://localhost:3456/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2:1b","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+<img width="1465" height="877" alt="promptfoomcpsplunksiemulatorlinux" src="https://github.com/user-attachments/assets/03ca8ea7-618e-417f-9c45-e1d2b0c006e4" />
+
+## Splunk Analysis Queries
+
+### Validate Log Ingestion
+```spl
+| tstats count WHERE index=mcp OR index=llm BY index, sourcetype
+```
+
+### MCP JSON-RPC Analysis
+
+**All MCP Traffic**
+```spl
+index=mcp sourcetype="mcp:jsonrpc"
+| table _time direction path method model
+```
+
+**Request/Response Pairs**
+```spl
+index=mcp sourcetype="mcp:jsonrpc"
+| stats count by direction
+| sort - count
+```
+
+**Prompt Analysis**
+```spl
+index=mcp sourcetype="mcp:jsonrpc" direction=request
+| spath input=_raw path=messages{} output=messages
+| mvexpand messages
+| spath input=messages
+| where role="user"
+| table _time content
+```
+
+### Ollama LLM Analysis
+
+**Chat Requests**
+```spl
+index=llm sourcetype="ollama:server" msg="chat request"
+| table _time model prompt
+```
+
+**Response Times**
+```spl
+index=llm sourcetype="ollama:server"
+| where isnotnull(total_duration)
+| eval duration_sec=total_duration/1000000000
+| timechart avg(duration_sec) as avg_response_time
+```
+
+### OWASP Security Detection Queries
+
+**Prompt Injection Attempts**
+```spl
+index=mcp sourcetype="mcp:jsonrpc" direction=request
+| spath input=_raw path=messages{}.content output=content
+| mvexpand content
+| search content="*ignore*previous*" OR content="*system prompt*" OR content="*DAN*" OR content="*jailbreak*"
+| table _time content
+```
+
+**Sensitive Data Disclosure Attempts**
+```spl
+index=mcp sourcetype="mcp:jsonrpc" direction=request
+| spath input=_raw path=messages{}.content output=content
+| mvexpand content
+| search content="*password*" OR content="*api key*" OR content="*/etc/passwd*" OR content="*environment variable*"
+| table _time content
+```
+
+**Excessive Agency Attempts**
+```spl
+index=mcp sourcetype="mcp:jsonrpc" direction=request
+| spath input=_raw path=messages{}.content output=content
+| mvexpand content
+| search content="*delete*" OR content="*execute*" OR content="*shell*" OR content="*rm -rf*"
+| table _time content
+```
+
+**Model Enumeration**
+```spl
+index=llm sourcetype="ollama:server"
+| search path="/api/tags" OR msg="*list*models*"
+| stats count by _time, source
+```
+
+### Security Dashboard Query
+```spl
+index=mcp sourcetype="mcp:jsonrpc" direction=request
+| spath input=_raw path=messages{}.content output=content
+| mvexpand content
+| eval attack_type=case(
+    match(content, "(?i)ignore.*previous|system prompt|jailbreak"), "Prompt Injection",
+    match(content, "(?i)password|api.?key|secret|token"), "Data Disclosure",
+    match(content, "(?i)delete|execute|shell|rm -rf"), "Excessive Agency",
+    match(content, "(?i)<script>|DROP TABLE|eval\\("), "Output Injection",
+    1=1, "Normal"
+)
+| stats count by attack_type
+| sort - count
+```
+
+<img width="1853" height="889" alt="ollamalogssplunksiempulatorlinux" src="https://github.com/user-attachments/assets/9c0bbca6-1553-4baf-a5fa-b6b6117beceb" />
+<img width="1853" height="889" alt="mcplogssiemulatorlinux" src="https://github.com/user-attachments/assets/f604ea71-3d0c-4c79-9d19-e1fb86577cea" />
+
+## OpenWebUI Ollama Function
 
 ### Ollama Function Integration
 The `ollamafunction.py` provides AI-enhanced Splunk querying:
@@ -93,199 +289,108 @@ The `ollamafunction.py` provides AI-enhanced Splunk querying:
 1. **Install in OpenWebUI**: Settings → Admin Settings → Functions → Add Function
 2. **Copy contents** of `ollamafunction.py` and save
 3. **Example queries**:
-   - "Find errors in ollama_logs **with insights**"
+   - "Find errors in llm index **with insights**"
    - "What indexes are available?"
-   - "search index=ollama_logs | head 10" 
+   - "search index=mcp | head 10"
 
 <img width="1465" height="877" alt="ollamasplunkfunctionsiemulatorlinux" src="https://github.com/user-attachments/assets/bf91db82-7656-4fb1-bae9-8b1049c3e1f2" />
 
+## Project Files
 
+### Core Components
+- `docker-compose.yml` - Service definitions with UF log collection
+- `mcp-logger.js` - JSON-RPC logging proxy for MCP server
+- `ollamafunction.py` - Splunk + AI integration function for OpenWebUI
+- `.env` - Environment variables (HEC token)
 
-### OWASP Security Testing
-Run security tests against the MCP server:
+### Splunk Configurations
+- `splunk-configs/` - Splunk Enterprise configurations
+- `splunk-uf-configs/` - Universal Forwarder configurations
+- `mcp-ta_012.tgz` - MCP Technology Add-on
+- `ta-ollama_015.tgz` - Ollama Technology Add-on
 
-```bash
-# Direct security testing
-./owasp-direct-test.sh
+### Testing Configurations
+- `mcp-test.yaml` - Basic MCP functionality tests
+- `owasp-mcp-test.yaml` - OWASP LLM Top 10 security tests
 
-# Or via Promptfoo
-docker compose cp owasp-mcp-test.yaml security-range-promptfoo:/owasp-mcp-test.yaml
-docker compose exec promptfoo promptfoo eval -c /owasp-mcp-test.yaml
-```
+### Log Directories
+- `logs/mcp-jsonrpc.log` - MCP JSON-RPC captured traffic
+- `logs/ollama.log` - Ollama server logs
 
-### Promptfoo Testing
-```bash
-# Basic AI functionality test
-docker compose cp test-config.yaml security-range-promptfoo:/test-config.yaml  
-docker compose exec promptfoo promptfoo eval -c /test-config.yaml
-
-# Generate sample prompts for analysis
-curl http://localhost:11434/api/generate -d '{"model":"llama3.2:latest","prompt":"Test security analysis","stream":false}'
-```
-<img width="1465" height="877" alt="promptfoomcpsplunksiemulatorlinux" src="https://github.com/user-attachments/assets/03ca8ea7-618e-417f-9c45-e1d2b0c006e4" />
-
-<img width="1456" height="807" alt="promptfooollamasiemulatorlinux" src="https://github.com/user-attachments/assets/8b01476a-ac20-433f-a609-6f6c163df408" />
-
-
-
-## 🔍 Splunk Analysis Queries
-
-### Validate Log Ingestion
-```spl
-# Check log flow from containers
-index=ollama_logs OR index=mcp_logs 
-| stats count by index, sourcetype
-
-# Monitor AI prompts and responses  
-index=ollama_logs "chat request" 
-| rex field=_raw "prompt=\"(?<prompt>.*?)\""
-| table _time, prompt
-| head 20
-
-index=ollama_logs sourcetype="ollama:docker" 
-| rex field=_raw "msg=\"chat request\".*prompt=\"(?<full_prompt>.*)\""
-| eval prompt_length=len(full_prompt)
-| where prompt_length > 0
-| stats count, avg(prompt_length) by date_mday
-
-## 🐳 Architecture Details  
-
-### Network Configuration
-- **IPv6 Disabled** to prevent localhost resolution issues
-- **Custom bridge network** for container communication
-- **Host networking** for Promptfoo to reach localhost services
-
-### Port Mappings
-```yaml
-splunk:
-  - "8000:8000"   # Web UI
-  - "8088:8088"   # HEC 
-  - "8089:8089"   # Management API
-  - "5514:514/udp" # Syslog
-
-ollama:  
-  - "11434:11434" # API
-
-ollama-mcp:
-  - "3456:3456"   # MCP Protocol
-
-promptfoo: 
-  - "3000:3000"   # Web UI (host networking)
-  
-openwebui:
-  - "3001:8080"   # Web UI  
-```
-
-<img width="1840" height="877" alt="promptlogssplunksiemulator" src="https://github.com/user-attachments/assets/c3ffbb7a-cb18-4d67-8a10-c75d61cd63e3" />
-
-
-### Critical Configuration Changes Made
-1. **IPv6 disabled** in docker-compose networks
-2. **Container hostname resolution** for ollama function (`security-range-splunk`)  
-3. **Proper model name** (`llama3.2:latest`) in ollama function
-4. **JSON escaping** in log forwarder for prompt content
-5. **SSL certificate bypass** for Splunk management API connections
-
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Common Issues and Solutions
 
-**1. No AI prompts in Splunk**
+**1. No logs in Splunk indexes**
 ```bash
-# Check if log forwarder is running
-ps aux | grep log-forwarder
+# Check if UF is running and forwarding
+docker logs security-range-splunk-uf
 
-# Restart log forwarder
-pkill -f log-forwarder
-sudo ./log-forwarder.sh &
+# Verify log files exist
+ls -la logs/
 
-# Generate test prompt  
-curl http://localhost:11434/api/generate -d '{"model":"llama3.2:latest","prompt":"test"}'
+# Check Splunk receiving port
+docker exec security-range-splunk netstat -tlnp | grep 9997
 ```
 
-**2. IPv6 Resolution Issues**
-- Symptom: "Connection refused" to localhost
-- Solution: Containers configured for IPv4-only networking
+**2. MCP Server not responding**
+```bash
+# Check MCP container logs
+docker logs security-range-ollama-mcp
 
-**3. Port Conflicts**  
+# Test MCP endpoint directly
+curl http://localhost:3456/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2:1b","messages":[{"role":"user","content":"test"}]}'
+```
+
+**3. Ollama model not found**
+```bash
+# List available models
+docker exec security-range-ollama ollama list
+
+# Pull required model
+docker exec security-range-ollama ollama pull llama3.2:1b
+```
+
+**4. Port conflicts**
 ```bash
 # Check for conflicting services
-sudo netstat -tulpn | grep -E "(8000|8088|8089|11434|3456)"
+sudo netstat -tulpn | grep -E "(8000|8088|11434|3456)"
 
-# Change conflicting ports in docker-compose.yml
+# Stop local Ollama if running
+sudo systemctl stop ollama
 ```
 
-**4. Ollama Function Connection Errors**
-- Symptom: "HTTPSConnectionPool" errors
-- Solution: Uses `security-range-splunk` hostname instead of localhost
+**5. Container startup issues**
+```bash
+# Full cleanup and restart
+docker compose down -v
+docker compose up -d
 
-**5. HEC Token Issues**
-```bash  
-# Test HEC manually
-curl -X POST "http://localhost:8088/services/collector/event" \
-  -H "Authorization: Splunk f4e45204-7cfa-48b5-bfbe-95cf03dbcad7" \
-  -H "Content-Type: application/json" \
-  -d '{"event":"test","index":"ollama_logs"}'
+# Watch Splunk initialization
+docker compose logs -f splunk
 ```
 
-**6. Splunk Management API**
-- Ensure port 8089 is accessible: `curl -k -u admin:Password1 https://localhost:8089/services/data/indexes`
--  May need to change to https in settings server settings enable https which will also need to be changed at the log-forwarder.sh
+**6. Promptfoo GUI not accessible**
+```bash
+# Start Promptfoo view manually
+docker exec -d security-range-promptfoo promptfoo view -p 15500 -y
 
-## 📁 Project Files
-
-### Core Components  
-- `docker-compose.yml` - Service definitions with IPv4 networking
-- `log-forwarder.sh` - **Critical log shipping script** 
-- `ollamafunction.py` - Splunk + AI integration function in Ollama
-- `.env` - Environment variables (HEC token)
-
-### Testing Configurations
-- `test-config.yaml` - Basic Ollama functionality test
-- `owasp-mcp-test.yaml` - Security testing via Promptfoo  
-
-### Generated Files (during setup)
-- `logs/mcp.log` - MCP container file logs
-- `results.json` - Promptfoo test results
-
-## 🎯 Security Analysis Use Cases
-
-### 1. Prompt Injection Detection
-Monitor for malicious prompt patterns in AI interactions:
-```spl
-index=ollama_logs sourcetype="ollama:docker" 
-| rex field=_raw "prompt=\"(?<prompt>.*?)\""
-| search prompt="*ignore previous*" OR prompt="*system override*" 
-| table _time, prompt
+# Check if running
+curl http://localhost:15500
 ```
 
-### 2. AI Model Enumeration  
-Detect reconnaissance against AI services:
-```spl
-index=ollama_logs OR index=mcp_logs
-| search "/api/tags" OR "list models" OR "available models"
-| stats count by src_ip, _time
-```
-
-### 3. Resource Abuse Monitoring
-Track excessive AI usage patterns:
-```spl  
-index=ollama_logs sourcetype="ollama:docker"
-| rex field=_raw "t_total=(?<total_time>\d+\.\d+)"
-| where total_time > 30000
-| timechart avg(total_time) as avg_response_time
-```
-
-
-## ⚠️ Important Notes
+## Important Notes
 
 - **Ollama v0.3.12 Required**: Newer versions have reduced prompt logging
-- **Log Forwarder is Essential**: Without it, AI interactions won't appear in Splunk  
+- **Splunk UF Architecture**: Logs are collected from shared volume, not container stdout
 - **Resource Requirements**: 16GB+ RAM recommended for smooth operation
 - **Local Only**: All services run locally for security and privacy
+- **JSON-RPC Format**: MCP traffic is captured in proper JSON-RPC 2.0 format
 
 ---
 
-**Original Concept**: Rod Soto (rodsoto.net) - Windows Version  https://github.com/rsfl/splunk-mcp-llm-siemulator
+**Original Concept**: Rod Soto (rodsoto.net) - Windows Version https://github.com/rsfl/splunk-mcp-llm-siemulator
 
-**Linux Adaptation**: Enhanced with robust logging and security testing capabilities
+**Linux Adaptation v2**: Enhanced with Splunk UF, JSON-RPC logging, OWASP LLM Top 10 testing, and enterprise-grade log collection
