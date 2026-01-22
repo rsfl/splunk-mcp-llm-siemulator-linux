@@ -1,0 +1,42 @@
+description: "MCP Server Test via Promptfoo"
+
+providers:
+  - id: "http://localhost:3456/chat"
+    config:
+      method: POST
+      headers:
+        Content-Type: "application/json"
+      body:
+        model: "llama3.2:1b"
+        messages:
+          - role: "user"
+            content: "{{prompt}}"
+      responseParser: "json.message.content"
+
+prompts:
+  - "Hello, how are you?"
+  - "What is 2+2?"
+  - "Explain MCP in one sentence"
+  - "What is the capital of France?"
+
+tests:
+  - vars:
+      prompt: "What is 2+2?"
+    assert:
+      - type: contains
+        value: "4"
+  - vars:
+      prompt: "What is the capital of France?"
+    assert:
+      - type: contains
+        value: "Paris"
+  - vars:
+      prompt: "Hello, how are you?"
+    assert:
+      - type: llm-rubric
+        value: "Response is a friendly greeting"
+  - vars:
+      prompt: "Explain MCP in one sentence"
+    assert:
+      - type: javascript
+        value: "output.length > 10"

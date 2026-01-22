@@ -8,22 +8,36 @@ services:
       SPLUNK_START_ARGS: --accept-license
       SPLUNK_PASSWORD: Password1             # change after first login
       SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}  # pre-creates token
-      SPLUNK_HEC_ENABLE: "true"
+      SPLUNK_HEC_SSL: "false"
+      SPLUNK_APPS_URL: /tmp/apps/mcp-ta_012.tgz,/tmp/apps/ta-ollama_015.tgz
     ports:
       - "8000:8000"
       - "8088:8088"
       - "8089:8089"                         # management port
+      - "9997:9997"                         # receiving port for forwarders
       - "5514:514/udp"                       # syslog UDP port (changed to avoid conflict)
     volumes:
       - splunk_var:/opt/splunk/var
       - splunk_etc:/opt/splunk/etc
       - ./splunk-configs:/tmp/defaults
+      - ./mcp-ta_012.tgz:/tmp/apps/mcp-ta_012.tgz
+      - ./ta-ollama_015.tgz:/tmp/apps/ta-ollama_015.tgz
+      - ./logs:/var/log/containers
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/services/collector/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
 
   # -------------------- Ollama --------------------
   ollama:
     image: ollama/ollama:0.3.12
     container_name: security-range-ollama
     hostname: ollama-server
+    depends_on:
+      splunk:
+        condition: service_healthy
     environment:
       OLLAMA_DEBUG: "1"
       OLLAMA_VERBOSE: "1"
@@ -41,46 +55,43 @@ services:
     volumes:
       - ollama_models:/root/.ollama
       - ./logs:/var/log/ollama
-    logging:
-      driver: splunk
-      options:
-        splunk-url: "http://security-range-splunk:8088"
-        splunk-token: "${SPLUNK_HEC_TOKEN}"
-        splunk-format: raw
-        splunk-index: ollama_logs
-        splunk-sourcetype: ollama:docker
-        splunk-insecureskipverify: "true"
-        splunk-verify-connection: "false"
-        tag: "ollama"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["exec /bin/ollama serve > /var/log/ollama/ollama.log 2>&1"]
 
   # -------------------- MCP  ------------------
   ollama-mcp:
     image: node:20-slim
     container_name: security-range-ollama-mcp
-    depends_on: [ollama]
+    depends_on:
+      ollama:
+        condition: service_started
+      splunk:
+        condition: service_healthy
     environment:
       PORT: 3456
       OLLAMA_API: http://security-range-ollama:11434
-      LOG_LEVEL: DEBUG
-      DEBUG: "*"
-      NODE_ENV: development
-      VERBOSE: "1"
-      NODE_DEBUG: "*"
-      NPM_CONFIG_LOGLEVEL: verbose
-    command: ["/bin/bash", "-c", "mkdir -p /var/log && exec npx -y @rawveg/ollama-mcp > /var/log/mcp.log 2>&1"]
+      NODE_ENV: production
+    command: ["/bin/bash", "-c", "mkdir -p /var/log && node /app/mcp-logger.js 2>/dev/null"]
     volumes:
       - ./logs:/var/log
+      - ./mcp-logger.js:/app/mcp-logger.js:ro
     ports: ["3456:3456"]
-# logging:
-    #   driver: splunk
-    #   options:
-    #     splunk-url:  "http://security-range-splunk:8088"
-    #     splunk-token: "${SPLUNK_HEC_TOKEN}"
-    #     splunk-format: raw
-    #     splunk-index: mcp_logs
-    #     splunk-insecureskipverify: "true"
-    #     splunk-verify-connection: "false"
-    #     tag: "{{.Name}}"
+
+  # -------------------- Splunk UF (Log Forwarder) --
+  splunk-uf:
+    image: splunk/universalforwarder:9.1.3
+    container_name: security-range-splunk-uf
+    hostname: splunk-uf
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_PASSWORD: Password1
+      SPLUNK_STANDALONE_URL: security-range-splunk:9997
+    volumes:
+      - ./logs:/var/log/containers:ro
+      - ./splunk-uf-configs:/tmp/defaults
+    depends_on:
+      splunk:
+        condition: service_healthy
 
   # -------------------- Promptfoo -----------------
   promptfoo:
