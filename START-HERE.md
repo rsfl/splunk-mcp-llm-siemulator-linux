@@ -1,95 +1,102 @@
-# 🎉 Your Raw HEC Setup is Ready! - Linux Version by Rod Soto rodsoto.net
+# SPLUNK MCP / LLM SIEMulator v2 - Linux Quick Start
 
+## v2 Architecture: Splunk Universal Forwarder + JSON-RPC Logging
 
+### Quick Start
 
-### 🚀 Quick Start Options
-
-**EASIEST**: Run `./quick-start.sh`
-
-**RECOMMENDED**: Open terminal and run:
-```bash
-./start-raw-hec-lab.sh
-```
-
-### 📁 Files Created for You
-
-✅ **deploy-raw-hec.sh** - Main deployment script
-✅ **start-raw-hec-lab.sh** - Start your lab environment  
-✅ **validate-raw-hec.sh** - Test Raw HEC connectivity
-✅ **quick-start.sh** - One-click startup (simplest)
-✅ **docker-compose.yml** - Enhanced Docker Compose with Raw HEC
-✅ **README.md** - Complete documentation
-✅ **splunk-configs/indexes.conf** - Enhanced Splunk indexes
-✅ **splunk-configs/inputs.conf** - Raw HEC endpoint configuration
-✅ **splunk-configs/props.conf** - Log parsing rules for Raw HEC
-
-### 🔄 Next Steps
-
-1. **Start your lab**:
+1. **Set environment variable**
    ```bash
-   ./quick-start.sh
+   export SPLUNK_HEC_TOKEN=f4e45204-7cfa-48b5-bfbe-95cf03dbcad7
    ```
 
-2. **Wait 30 seconds** for services to start
-
-3. **Validate it's working**:
+2. **Start the lab**
    ```bash
-   ./validate-raw-hec.sh
+   docker compose up -d
    ```
 
-4. **Access Splunk**: http://localhost:8000 (admin/Password1)
+3. **Wait for Splunk** (look for "Ansible playbook complete")
+   ```bash
+   docker compose logs -f splunk
+   ```
 
-5. **Test Raw HEC**: http://localhost:8088/services/collector/health
+4. **Pull the LLM model** (first time only)
+   ```bash
+   docker exec security-range-ollama ollama pull llama3.2:1b
+   ```
 
-### 🔍 Check Your Logs in Splunk
+5. **Access Splunk**: http://localhost:8000 (admin/Password1)
 
-Use these searches in Splunk:
+### Check Your Logs in Splunk
 
 ```spl
-# See all your logs
-index=ollama_logs OR index=mcp_logs 
+# Validate data ingestion
+| tstats count WHERE index=mcp OR index=llm BY index, sourcetype
 
-# Check Raw HEC is working
-index=ollama_logs sourcetype=ollama:docker | head 10
+# View MCP JSON-RPC traffic
+index=mcp sourcetype="mcp:jsonrpc"
+| table _time direction path method model
 
+# View Ollama LLM logs
+index=llm sourcetype="ollama:server"
+| table _time level msg model
 ```
 
-### 📊 What Raw HEC Does for You
+### Indexes and Sourcetypes
 
-✅ **Preserves Original Log Format** - Logs look exactly like they do on disk
-✅ **Better Performance** - Faster than JSON endpoint  
-✅ **Native Splunk Parsing** - Uses your props.conf rules
-✅ **ATLAS TTP Detection** - Automatic threat hunting
-✅ **Simple Configuration** - Metadata via URL parameters
+| Index | Sourcetype | Content |
+|-------|------------|---------|
+| `mcp` | `mcp:jsonrpc` | MCP server JSON-RPC requests/responses |
+| `llm` | `ollama:server` | Ollama LLM server logs |
 
-### 🛠️ Manual Test (Optional)
+### v2 Key Features
 
-Test Raw HEC directly:
+- **Splunk Universal Forwarder** - Enterprise-grade log collection (replaced HEC script)
+- **JSON-RPC Logging Proxy** - Clean MCP protocol capture
+- **OWASP LLM Top 10 Testing** - Security test suite via Promptfoo
+- **Technology Add-ons** - Auto-installed with field extractions
+- **Promptfoo GUI** - View test results at http://localhost:15500
+
+### Run OWASP LLM Top 10 Tests
+
 ```bash
-curl -X POST \
-  -H "Authorization: Splunk f4e45204-7cfa-48b5-bfbe-95cf03dbcad7" \
-  -H "Content-Type: text/plain" \
-  -d "Test message from Linux curl" \
-  "http://localhost:8088/services/collector/raw/1.0?index=ollama_logs&sourcetype=test"
+# Copy test config
+docker cp owasp-mcp-test.yaml security-range-promptfoo:/owasp-mcp-test.yaml
+
+# Run security tests
+docker exec security-range-promptfoo promptfoo eval -c /owasp-mcp-test.yaml
+
+# View results in GUI
+docker exec -d security-range-promptfoo promptfoo view -p 15500 -y
 ```
 
-### 🚨 If Something Goes Wrong
+Then open http://localhost:15500
 
-1. **Check Docker**: Make sure Docker Engine is running
-2. **Check .env file**: Should contain your HEC token
-3. **Check logs**: `docker-compose logs splunk`
-4. **Restart**: `docker-compose down && docker-compose up -d`
-5. **Permissions**: Ensure user is in docker group: `sudo usermod -aG docker $USER`
+### Access Points
 
-### 🎯 Key Differences from Windows Setup
+| Service | URL | Auth |
+|---------|-----|------|
+| Splunk Web | http://localhost:8000 | admin/Password1 |
+| Ollama API | http://localhost:11434 | None |
+| MCP Server | http://localhost:3456 | None |
+| Promptfoo GUI | http://localhost:15500 | None |
+| OpenWebUI | http://localhost:3001 | None |
 
-- **Bash scripts** instead of PowerShell scripts
-- **Linux Docker networking** (localhost instead of host.docker.internal)
-- **Unix file permissions** and paths
-- **curl commands** instead of Invoke-RestMethod
+### Troubleshooting
+
+```bash
+# Check container status
+docker compose ps
+
+# View UF logs
+docker logs security-range-splunk-uf
+
+# Check log files
+ls -la logs/
+
+# Full restart
+docker compose down -v && docker compose up -d
+```
 
 ---
 
-## 🚀 START HERE: Run `./quick-start.sh` to begin!
-
-Then check Splunk at http://localhost:8000 (admin/Password1)
+See README.md for complete documentation and SPL queries.
