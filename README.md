@@ -122,10 +122,17 @@ This lab is designed for developing AI/ML security detections based on the [MITR
 - **Content**: JSON-RPC requests and responses from MCP server
 - **Fields**: `timestamp`, `direction`, `path`, `method`, `id`, `model`, `messages`
 
+  <img width="1858" height="914" alt="Screenshot from 2026-01-22 09-17-11" src="https://github.com/user-attachments/assets/4d60e834-75bf-4ba3-8f38-0f1cf6cbc7ec" />
+
+
 ### Index: `llm`
 - **Sourcetype**: `ollama:server`
 - **Content**: Ollama server logs including prompts and responses
 - **Fields**: `time`, `level`, `source`, `msg`, `model`, `prompt`, `total_duration`
+
+<img width="1858" height="914" alt="Screenshot from 2026-01-22 09-19-07" src="https://github.com/user-attachments/assets/fa3077ff-9207-40de-9c0b-2572ee120205" />
+
+
 
 ## AI Security Testing
 
