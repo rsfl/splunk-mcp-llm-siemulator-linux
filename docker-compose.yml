@@ -111,6 +111,24 @@ services:
     ports: ["4001:4000"]
     restart: unless-stopped
 
+  # ---- Bifrost keepalive — keeps UI 1h window populated ----
+  bifrost-keepalive:
+    image: python:3.12-alpine
+    container_name: security-range-bifrost-keepalive
+    depends_on:
+      bifrost:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      BIFROST_URL: http://security-range-bifrost:8080/v1/chat/completions
+      KEEPALIVE_INTERVAL: "1200"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./bifrost/keepalive.py:/app/keepalive.py:ro
+    command: ["python3", "/app/keepalive.py"]
+    restart: unless-stopped
+
   # ---- Bifrost → Splunk HEC sidecar (Splunk Python lacks sqlite3) ----
   bifrost-hec-shipper:
     image: python:3.12-alpine
