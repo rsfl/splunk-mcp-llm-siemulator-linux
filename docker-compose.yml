@@ -9,7 +9,7 @@ services:
       SPLUNK_PASSWORD: Password1             # change after first login
       SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}  # pre-creates token
       SPLUNK_HEC_SSL: "false"
-      SPLUNK_APPS_URL: /tmp/apps/mcp-ta_012.tgz,/tmp/apps/ta-ollama_015.tgz,/tmp/apps/ta-llmgateway_035.tgz
+      SPLUNK_APPS_URL: https://github.com/rsfl/mcp-ta/raw/main/mcp-ta_012.tgz,/tmp/apps/ta-ollama_015.tgz,/tmp/apps/ta-llmgateway_035.tgz
     ports:
       - "8000:8000"
       - "8088:8088"
@@ -20,7 +20,6 @@ services:
       - splunk_var:/opt/splunk/var
       - splunk_etc:/opt/splunk/etc
       - ./splunk-configs:/tmp/defaults
-      - ./mcp-ta_012.tgz:/tmp/apps/mcp-ta_012.tgz
       - ./ta-ollama_015.tgz:/tmp/apps/ta-ollama_015.tgz
       - ./ta-llmgateway_035.tgz:/tmp/apps/ta-llmgateway_035.tgz
       - ./logs:/var/log/containers
@@ -110,6 +109,27 @@ services:
     command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
     working_dir: /app
     ports: ["4001:4000"]
+    restart: unless-stopped
+
+  # ---- Bifrost → Splunk HEC sidecar (Splunk Python lacks sqlite3) ----
+  bifrost-hec-shipper:
+    image: python:3.12-alpine
+    container_name: security-range-bifrost-shipper
+    depends_on:
+      splunk:
+        condition: service_healthy
+      bifrost:
+        condition: service_started
+    environment:
+      SPLUNK_HEC_URL: http://security-range-splunk:8088/services/collector/event
+      SPLUNK_HEC_TOKEN: ${SPLUNK_HEC_TOKEN}
+      BIFROST_DB_PATH: /app/data/logs.db
+      SHIP_INTERVAL: "30"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./bifrost:/app/data:ro
+      - ./bifrost/hec_shipper.py:/app/hec_shipper.py:ro
+    command: ["python3", "/app/hec_shipper.py"]
     restart: unless-stopped
 
   # -------------------- Splunk UF (Log Forwarder) --

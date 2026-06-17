@@ -1,4 +1,11 @@
 {
+  "$schema": "https://www.getbifrost.ai/schema",
+  "log_store": {
+    "type": "sqlite",
+    "sqlite": {
+      "path": "/app/data/logs.db"
+    }
+  },
   "providers": {
     "ollama": {
       "keys": [
