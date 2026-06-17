@@ -24,7 +24,7 @@ services:
       - ./ta-ollama_015.tgz:/tmp/apps/ta-ollama_015.tgz
       - ./ta-llmgateway_035.tgz:/tmp/apps/ta-llmgateway_035.tgz
       - ./logs:/var/log/containers
-      - bifrost_data:/mnt/bifrost:ro         # Bifrost SQLite for TA-llmgateway scripted input
+      - ./bifrost:/mnt/bifrost:ro            # Bifrost logs.db for TA-llmgateway scripted input
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/services/collector/health"]
       interval: 10s
@@ -53,7 +53,7 @@ services:
       OLLAMA_LOG_REQUESTS: "1"
       OLLAMA_LOG_RESPONSES: "1"
       OLLAMA_ENABLE_LOGGING: "1"
-    ports: ["11434:11434"]
+    ports: ["11435:11434"]
     volumes:
       - ollama_models:/root/.ollama
       - ./logs:/var/log/ollama
@@ -88,8 +88,7 @@ services:
       ollama:
         condition: service_started
     volumes:
-      - ./bifrost/config.json:/app/config.json:ro
-      - bifrost_data:/app/data              # SQLite shared with Splunk TA scripted input
+      - ./bifrost:/app/data                  # config.json + logs.db; shared with Splunk TA
     ports: ["8090:8080"]
     restart: unless-stopped
 
@@ -110,7 +109,7 @@ services:
       - ./litellm/custom_callbacks.py:/app/custom_callbacks.py:ro
     command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
     working_dir: /app
-    ports: ["4000:4000"]
+    ports: ["4001:4000"]
     restart: unless-stopped
 
   # -------------------- Splunk UF (Log Forwarder) --
@@ -161,7 +160,6 @@ volumes:
   splunk_etc:
   promptfoo_data:
   openwebui_data:
-  bifrost_data:                             # shared between bifrost and splunk (TA scripted input)
 
 # ---------- Networks ----------
 networks:

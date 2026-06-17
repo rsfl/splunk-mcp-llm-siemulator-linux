@@ -6,7 +6,10 @@
           "name": "ollama-local",
           "value": "dummy",
           "models": ["llama3.2"],
-          "weight": 1.0
+          "weight": 1.0,
+          "ollama_key_config": {
+            "url": "http://security-range-ollama:11434"
+          }
         }
       ],
       "network_config": {
