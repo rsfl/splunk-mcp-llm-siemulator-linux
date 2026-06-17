@@ -411,13 +411,149 @@ index=llm sourcetype="ollama:server"
 
 ## Technology Add-ons
 
-| Add-on | Version | Source | Purpose |
-|--------|---------|--------|---------|
-| TA-mcp-jsonrpc | 0.1.2 | https://github.com/rsfl/mcp-ta | MCP JSON-RPC field extractions |
-| TA-ollama | 0.1.5 | `ta-ollama_015.tgz` (local) | Ollama log field extractions |
-| TA-llmgateway | 0.3.5 | `ta-llmgateway_035.tgz` (local) | Bifrost + LiteLLM ingestion |
+All three TAs are auto-installed when the Splunk container starts via `SPLUNK_APPS_URL` in `docker-compose.yml`.
 
-TA-mcp-jsonrpc is downloaded from GitHub during `docker compose up`. The others are loaded from the local directory.
+| Add-on | Version | Source | Index | Sourcetype(s) |
+|--------|---------|--------|-------|---------------|
+| TA-mcp-jsonrpc | 0.1.2 | GitHub (auto-download) | `mcp` | `mcp:jsonrpc`, `claude:mcp:debug` |
+| TA-ollama | 0.1.5 | `ta-ollama_015.tgz` (local) | `llm` | `ollama:server` |
+| TA-llmgateway | 0.3.5 | `ta-llmgateway_035.tgz` (local) | `llmgateway` | `llmgateway:bifrost`, `llmgateway:litellm` |
+
+---
+
+### TA-mcp-jsonrpc (v0.1.2)
+
+- **GitHub**: https://github.com/rsfl/mcp-ta
+- **Splunkbase**: https://splunkbase.splunk.com/app/8377
+- **Author**: Rod Soto
+- **Loaded**: downloaded from GitHub during `docker compose up` via `SPLUNK_APPS_URL`
+
+**What it does**: Parses JSON-RPC 2.0 protocol messages from Model Context Protocol (MCP) servers. Extracts 40+ fields covering tool calls, file operations, GitHub actions, and security-relevant events.
+
+**Sourcetypes**:
+- `mcp:jsonrpc` — raw JSON-RPC messages (requests, responses, notifications)
+- `claude:mcp:debug` — Claude Code debug logs containing MCP activity
+
+**Key extracted fields**:
+
+| Field | Description |
+|-------|-------------|
+| `mcp.method` | RPC method (e.g., `tools/call`, `resources/read`) |
+| `mcp.tool_name` | Name of the tool being called |
+| `mcp.file_path` | File path accessed (security-critical) |
+| `mcp.file_operation` | `read`, `write`, `delete`, `search` |
+| `mcp.github_owner` / `mcp.github_repo` | GitHub repository context |
+| `mcp.has_sensitive_operation` | Flag for risky operations |
+| `mcp.has_error` | Error indicator |
+| `mcp.message_type` | `request`, `response`, `notification`, `error` |
+
+**CIM compliance**: Maps to the Web data model (action, url, status, src, dest).
+
+**Attack detection use cases** (built into TA):
+- SSH `authorized_keys` manipulation
+- Cron backdoor creation
+- Shell profile persistence (`.bashrc`)
+- `/etc/shadow` access attempts
+- SSH private key theft
+- Data exfiltration staging (`/tmp/stolen_*`)
+- Malicious script creation
+
+**Sample SPL**:
+```spl
+index=mcp sourcetype="mcp:jsonrpc" mcp.method="tools/call"
+| table _time mcp.tool_name mcp.file_path mcp.file_operation mcp.has_sensitive_operation
+| where mcp.has_sensitive_operation=true
+```
+
+---
+
+### TA-llmgateway (v0.3.5)
+
+- **File**: `ta-llmgateway_035.tgz` (included in repository)
+- **Loaded**: from local file during `docker compose up` via `SPLUNK_APPS_URL`
+
+**What it does**: Provides two ingestion paths — one for Bifrost (SQLite-based) and one for LiteLLM (HEC callback). Enables visibility into every prompt and response flowing through the LLM gateway layer.
+
+#### Ingestion Path 1: LiteLLM → Splunk HEC
+
+LiteLLM fires a custom callback (`litellm/custom_callbacks.py`) on every completed request. Events are POSTed directly to Splunk HEC:
+
+```
+LiteLLM request completes
+    → custom_callbacks.SplunkHECHandler.log_success_event()
+    → POST http://security-range-splunk:8088/services/collector/event
+    → index=llmgateway  sourcetype=llmgateway:litellm
+```
+
+No polling delay — events arrive in Splunk within seconds of the LLM response.
+
+**Key fields** (`llmgateway:litellm`):
+
+| Field | Description |
+|-------|-------------|
+| `model` | Model name as requested |
+| `response_time` | Total latency in seconds |
+| `usage.prompt_tokens` | Input token count |
+| `usage.completion_tokens` | Output token count |
+| `usage.total_tokens` | Total tokens |
+| `gateway` | Always `litellm` |
+
+#### Ingestion Path 2: Bifrost → SQLite → Sidecar → Splunk HEC
+
+Bifrost writes every request to a local SQLite database (`bifrost/logs.db`). A Python sidecar container (`bifrost-hec-shipper`) polls this file every 30 seconds and ships new rows to Splunk HEC:
+
+```
+Bifrost handles request
+    → writes to /app/data/logs.db (SQLite, table: logs)
+    → bifrost-hec-shipper polls every 30s (checkpoint-based)
+    → POST http://security-range-splunk:8088/services/collector/event
+    → index=llmgateway  sourcetype=llmgateway:bifrost
+```
+
+> **Note**: The TA-llmgateway includes a `bifrost_logs.py` scripted input for direct SQLite reading inside Splunk, but Splunk's embedded Python lacks the `sqlite3` C extension. The HEC sidecar (`bifrost/hec_shipper.py`) is the working replacement.
+
+**Key fields** (`llmgateway:bifrost`):
+
+| Field | Description |
+|-------|-------------|
+| `provider` | LLM provider (e.g., `ollama`) |
+| `model` | Model name |
+| `status` | `success` or `error` |
+| `latency` | Response time in milliseconds |
+| `prompt_tokens` | Input token count |
+| `completion_tokens` | Output token count |
+| `total_tokens` | Total tokens |
+| `input_prompt` | The user prompt text |
+| `output_text` | The model response text |
+| `selected_key_name` | API key name used for routing |
+| `gateway` | Always `bifrost` |
+
+**TA local config files** (inside the tarball at `TA-llmgateway/local/`):
+
+```ini
+# ta_llmgateway_settings.conf
+[bifrost]
+db_path   = /mnt/bifrost/logs.db
+index     = llmgateway
+interval  = 30
+batch_size = 500
+
+# inputs.conf (HEC stanza — handled by splunk-configs/inputs.conf)
+[http://llmgateway_litellm_hec]
+disabled  = false
+index     = llmgateway
+sourcetype = llmgateway:litellm
+token     = f4e45204-7cfa-48b5-bfbe-95cf03dbcad7
+```
+
+**Cross-gateway query** — compare both gateways side by side:
+```spl
+index=llmgateway
+| eval gateway=coalesce(gateway, if(sourcetype="llmgateway:bifrost","bifrost","litellm"))
+| eval tokens=coalesce(total_tokens, 'usage.total_tokens')
+| eval latency_ms=coalesce(latency, response_time*1000)
+| stats count avg(latency_ms) as avg_latency_ms sum(tokens) as total_tokens by gateway
+```
 
 ---
 
