@@ -1,2 +1,5 @@
 .env
 logs/
+bifrost/*.db
+bifrost/*.db-shm
+bifrost/*.db-wal
