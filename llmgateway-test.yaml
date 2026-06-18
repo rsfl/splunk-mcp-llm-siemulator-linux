@@ -17,7 +17,7 @@ providers:
         stream: false
       responseParser: "json.choices[0].message.content"
 
-  # ---- LiteLLM gateway (port 4000, model name from config.yaml) ----
+  # ---- LiteLLM gateway (port 4001, model name from config.yaml) ----
   - id: "http://localhost:4001/v1/chat/completions"
     label: "litellm"
     config:
