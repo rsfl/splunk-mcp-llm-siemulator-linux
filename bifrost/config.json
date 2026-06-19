@@ -1,0 +1,28 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "log_store": {
+    "type": "sqlite",
+    "sqlite": {
+      "path": "/app/data/logs.db"
+    }
+  },
+  "providers": {
+    "ollama": {
+      "keys": [
+        {
+          "name": "ollama-local",
+          "value": "dummy",
+          "models": ["llama3.2"],
+          "weight": 1.0,
+          "ollama_key_config": {
+            "url": "http://security-range-ollama:11434"
+          }
+        }
+      ],
+      "network_config": {
+        "base_url": "http://security-range-ollama:11434",
+        "allow_private_network": true
+      }
+    }
+  }
+}
