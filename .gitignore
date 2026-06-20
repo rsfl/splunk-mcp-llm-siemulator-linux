@@ -1,0 +1,10 @@
+.env
+logs/
+bifrost/logs.db
+bifrost/logs.db-shm
+bifrost/logs.db-wal
+bifrost/config.db
+bifrost/config.db-shm
+bifrost/config.db-wal
+__pycache__/
+*.pyc
