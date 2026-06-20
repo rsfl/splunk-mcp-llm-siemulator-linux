@@ -1,6 +1,6 @@
-# SPLUNK MCP / LLM SIEMulator v2 - Linux Quick Start
+# SPLUNK MCP / LLM SIEMulator - Linux Quick Start
 
-## v2 Architecture: Splunk Universal Forwarder + JSON-RPC Logging
+## Architecture: Splunk + Ollama + LLM Gateways + MCP
 
 ### Quick Start
 
@@ -21,79 +21,153 @@
 
 4. **Pull the LLM model** (first time only)
    ```bash
-   docker exec security-range-ollama ollama pull llama3.2:1b
+   docker exec security-range-ollama ollama pull llama3.2
    ```
 
 5. **Access Splunk**: http://localhost:8000 (admin/Password1)
 
+---
+
 ### Check Your Logs in Splunk
 
 ```spl
-# Validate data ingestion
-| tstats count WHERE index=mcp OR index=llm BY index, sourcetype
+-- Validate all data ingestion
+| tstats count WHERE index=mcp OR index=llm OR index=llmgateway OR index=agent BY index, sourcetype
 
-# View MCP JSON-RPC traffic
+-- MCP JSON-RPC traffic
 index=mcp sourcetype="mcp:jsonrpc"
 | table _time direction path method model
 
-# View Ollama LLM logs
+-- Ollama LLM server logs
 index=llm sourcetype="ollama:server"
 | table _time level msg model
+
+-- Bifrost gateway calls
+index=llmgateway sourcetype="llmgateway:bifrost"
+| table _time llmgateway_model llmgateway_provider llmgateway_tokens_total llmgateway_latency_ms
+
+-- LiteLLM gateway calls
+index=llmgateway sourcetype="llmgateway:litellm"
+| table _time llmgateway_model llmgateway_provider llmgateway_tokens_total llmgateway_latency_ms
+
+-- Agentic threat emulator events
+index=agent sourcetype="agent:workflow"
+| table _time event_type attack_type mitre_atlas_technique severity
 ```
+
+---
 
 ### Indexes and Sourcetypes
 
-| Index | Sourcetype | Content |
-|-------|------------|---------|
-| `mcp` | `mcp:jsonrpc` | MCP server JSON-RPC requests/responses |
-| `llm` | `ollama:server` | Ollama LLM server logs |
+| Index | Sourcetype | Content | Source |
+|-------|------------|---------|--------|
+| `llm` | `ollama:server` | Ollama LLM server logs | Splunk UF → file monitor |
+| `mcp` | `mcp:jsonrpc` | MCP server JSON-RPC requests/responses | Splunk UF → file monitor |
+| `llmgateway` | `llmgateway:bifrost` | Bifrost gateway request/response telemetry | HEC sidecar (bifrost-hec-shipper) |
+| `llmgateway` | `llmgateway:litellm` | LiteLLM gateway request/response telemetry | HEC via custom callback |
+| `agent` | `agent:workflow` | Agentic attack emulator workflow events | HEC (agentic-llm-mcp-threat-emulator) |
 
-### v2 Key Features
-
-- **Splunk Universal Forwarder** - Enterprise-grade log collection (replaced HEC script)
-- **JSON-RPC Logging Proxy** - Clean MCP protocol capture
-- **OWASP LLM Top 10 Testing** - Security test suite via Promptfoo
-- **Technology Add-ons** - Auto-installed with field extractions
-- **Promptfoo GUI** - View test results at http://localhost:15500
-
-### Run OWASP LLM Top 10 Tests
-
-```bash
-# Copy test config
-docker cp owasp-mcp-test.yaml security-range-promptfoo:/owasp-mcp-test.yaml
-
-# Run security tests
-docker exec security-range-promptfoo promptfoo eval -c /owasp-mcp-test.yaml
-
-# View results in GUI
-docker exec -d security-range-promptfoo promptfoo view -p 15500 -y
-```
-
-Then open http://localhost:15500
+---
 
 ### Access Points
 
 | Service | URL | Auth |
 |---------|-----|------|
 | Splunk Web | http://localhost:8000 | admin/Password1 |
-| Ollama API | http://localhost:11434 | None |
+| Splunk HEC | http://localhost:8088 | token: f4e45204-7cfa-48b5-bfbe-95cf03dbcad7 |
+| Ollama API | http://localhost:11435 | None |
 | MCP Server | http://localhost:3456 | None |
-| Promptfoo GUI | http://localhost:15500 | None |
+| Bifrost Gateway | http://localhost:8090 | Bearer dummy |
+| LiteLLM Gateway | http://localhost:4001 | Bearer sk-litellm-local |
 | OpenWebUI | http://localhost:3001 | None |
+| Promptfoo | http://localhost:3000 | None |
+
+---
+
+### Technology Add-ons (auto-installed)
+
+| TA | Version | Sourcetypes |
+|----|---------|-------------|
+| TA-ollama | 0.1.5 | `ollama:server`, `ollama:api`, `ollama:prompts` |
+| TA-mcp-jsonrpc | 0.1.2 | `mcp:jsonrpc`, `mcp:stderr` |
+| TA-llmgateway | 0.3.5 | `llmgateway:bifrost`, `llmgateway:litellm` |
+
+---
+
+### Test the LLM Gateways
+
+```bash
+# Bifrost → Ollama
+curl -s -X POST http://localhost:8090/v1/chat/completions \
+  -H "Authorization: Bearer dummy" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"ollama/llama3.2","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
+
+# LiteLLM → Ollama
+curl -s -X POST http://localhost:4001/v1/chat/completions \
+  -H "Authorization: Bearer sk-litellm-local" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
+```
+
+---
+
+### Run OWASP LLM Top 10 Tests
+
+```bash
+# Test via LLM gateway (Bifrost)
+docker cp llmgateway-test.yaml security-range-promptfoo:/llmgateway-test.yaml
+docker exec security-range-promptfoo promptfoo eval -c /llmgateway-test.yaml
+
+# Test via MCP
+docker cp owasp-mcp-test.yaml security-range-promptfoo:/owasp-mcp-test.yaml
+docker exec security-range-promptfoo promptfoo eval -c /owasp-mcp-test.yaml
+```
+
+---
+
+### Run the Agentic Threat Emulator
+
+Requires the companion project: https://github.com/rsfl/agentic-llm-mcp-threat-emulator
+
+```bash
+cd /path/to/agentic-llm-mcp-threat-emulator
+
+# All 12 MITRE ATLAS scenarios via Bifrost
+python main.py run --scenario all --provider bifrost --no-mcp --delay 0.1 \
+  --hec-token 50e334a4-3a58-4e68-bbba-584b82d04b17
+
+# All 12 scenarios via LiteLLM
+python main.py run --scenario all --provider litellm --no-mcp --delay 0.1 \
+  --hec-token 50e334a4-3a58-4e68-bbba-584b82d04b17
+```
+
+Events land in `index=agent` (workflow) and `index=llmgateway` (gateway telemetry).
+
+---
 
 ### Troubleshooting
 
 ```bash
-# Check container status
+# Check all container status
 docker compose ps
 
-# View UF logs
-docker logs security-range-splunk-uf
+# Check Splunk startup
+docker logs security-range-splunk --tail 20
 
-# Check log files
+# Check UF log forwarding
+docker logs security-range-splunk-uf --tail 20
+
+# Check Bifrost HEC shipper
+docker logs security-range-bifrost-shipper --tail 20
+
+# Check log files on host
 ls -la logs/
 
-# Full restart
+# Full restart (keeps volumes)
+docker compose restart
+
+# Full teardown and rebuild (destroys data)
 docker compose down -v && docker compose up -d
 ```
 
