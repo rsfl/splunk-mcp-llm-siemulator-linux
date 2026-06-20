@@ -13,7 +13,8 @@
 - **Splunk Universal Forwarder** - Enterprise-grade log collection
 - **Technology Add-ons** - TA-ollama, TA-mcp-jsonrpc, TA-llmgateway with CIM compliance
 
-![splunkmcpllmsiemulator](https://github.com/user-attachments/assets/c3c04d04-9866-4c37-aba7-8cafbbefe7bb)
+<img width="671" height="605" alt="Screenshot from 2026-06-19 23-24-26" src="https://github.com/user-attachments/assets/278dbb34-abcb-4dd3-bfa3-3dccf017bfd7" />
+
 
 ## MITRE ATLAS Focused Detection Development Lab
 This lab is designed for developing AI/ML security detections based on the [MITRE ATLAS framework](https://atlas.mitre.org/matrices/ATLAS).
@@ -149,7 +150,7 @@ All TAs are auto-installed on `docker compose up` via `SPLUNK_APPS_URL`.
 - **Source**: Splunk UF → file monitor on `./logs/ollama.log`
 - **Fields**: `time`, `level`, `source`, `msg`, `model`, `prompt`, `total_duration`
 
-<img width="1858" height="914" alt="Screenshot from 2026-01-22 09-19-07" src="https://github.com/user-attachments/assets/fa3077ff-9207-40de-9c0b-2572ee120205" />
+<img width="1842" height="914" alt="llmindex2026-06-19 10-28-54" src="https://github.com/user-attachments/assets/59e3caf2-b232-41cf-b4c6-27b3738384af" />
 
 ### Index: `mcp`
 - **Sourcetype**: `mcp:jsonrpc`
@@ -157,7 +158,8 @@ All TAs are auto-installed on `docker compose up` via `SPLUNK_APPS_URL`.
 - **Source**: Splunk UF → file monitor on `./logs/mcp-jsonrpc.log`
 - **Fields**: `timestamp`, `direction`, `path`, `method`, `id`, `model`, `messages`
 
-<img width="1858" height="914" alt="Screenshot from 2026-01-22 09-17-11" src="https://github.com/user-attachments/assets/4d60e834-75bf-4ba3-8f38-0f1cf6cbc7ec" />
+<img width="1842" height="914" alt="mcpindex2026-06-19 10-25-34" src="https://github.com/user-attachments/assets/dc5c21e0-f0a7-4615-8a5e-9ec8663e17d8" />
+
 
 ### Index: `llmgateway`
 - **Sourcetypes**: `llmgateway:bifrost`, `llmgateway:litellm`
@@ -166,11 +168,17 @@ All TAs are auto-installed on `docker compose up` via `SPLUNK_APPS_URL`.
 - **Source (LiteLLM)**: `custom_callbacks.py` ships events in real-time via HEC
 - **Fields**: `llmgateway_model`, `llmgateway_provider`, `llmgateway_gateway`, `llmgateway_tokens_input`, `llmgateway_tokens_output`, `llmgateway_latency_ms`, `llmgateway_input_prompt`, `llmgateway_output_text`
 
+<img width="1226" height="943" alt="llmgateways2026-06-18 08-27-25" src="https://github.com/user-attachments/assets/580a4c98-6279-4b37-967c-05ba275a796b" />
+
+
 ### Index: `agent`
 - **Sourcetype**: `agent:workflow`
 - **Content**: Agentic LLM attack workflow events from the [agentic-llm-mcp-threat-emulator](https://github.com/rsfl/agentic-llm-mcp-threat-emulator)
 - **Source**: HEC token `50e334a4-3a58-4e68-bbba-584b82d04b17`
 - **Fields**: `event_type`, `attack_type`, `mitre_atlas_technique`, `severity`, `pipeline_stage`, `is_malicious`, `guardrail_verdict`
+
+<img width="1842" height="686" alt="agenticindex2026-06-18 08-29-13" src="https://github.com/user-attachments/assets/6aef534d-06c4-4210-8f1f-bc75cdb3bdfe" />
+
 
 ---
 
@@ -250,7 +258,8 @@ docker exec security-range-promptfoo promptfoo eval -c /owasp-mcp-test.yaml
 - **LLM09**: Overreliance
 - **LLM10**: Model Theft
 
-<img width="1465" height="877" alt="promptfoomcpsplunksiemulatorlinux" src="https://github.com/user-attachments/assets/03ca8ea7-618e-417f-9c45-e1d2b0c006e4" />
+<img width="1856" height="927" alt="promptfoo 2026-06-19 12-00-40" src="https://github.com/user-attachments/assets/f3010135-1a62-4794-82f2-6fff5591a4d7" />
+
 
 ### Agentic Threat Emulation
 
@@ -340,6 +349,9 @@ index=agent mitre_atlas_technique!=""
 | stats count by mitre_atlas_technique, attack_type
 ```
 
+<img width="1553" height="694" alt="Screenshot from 2026-06-19 23-36-23" src="https://github.com/user-attachments/assets/10db0927-e1c3-4d85-bf62-d5c36c4c6e54" />
+
+
 ### Cross-Index Correlation
 
 ```spl
@@ -385,8 +397,8 @@ index=mcp sourcetype="mcp:jsonrpc" direction=request
 | sort -count
 ```
 
-<img width="1853" height="889" alt="ollamalogssplunksiempulatorlinux" src="https://github.com/user-attachments/assets/9c0bbca6-1553-4baf-a5fa-b6b6117beceb" />
-<img width="1853" height="889" alt="mcplogssiemulatorlinux" src="https://github.com/user-attachments/assets/f604ea71-3d0c-4c79-9d19-e1fb86577cea" />
+<img width="1563" height="590" alt="Screenshot from 2026-06-19 23-38-49" src="https://github.com/user-attachments/assets/aa45c83c-f48c-48f9-b9c8-4f16b3eb14bd" />
+
 
 ---
 
