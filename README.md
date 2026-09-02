@@ -1,4 +1,4 @@
-# SPLUNK MCP / LLM SIEMulator by Rod Soto - Linux Version (v3)
+# SPLUNK MCP / LLM SIEMulator by Rod Soto - Linux Version (v3.1)
 
 ## Docker-based AI Security Analysis Lab for Linux
 
@@ -136,7 +136,7 @@ This lab is designed for developing AI/ML security detections based on the [MITR
 |----|---------|-------------|
 | TA-ollama (`ta-ollama_015.tgz`) | 0.1.5 | `ollama:server`, `ollama:api`, `ollama:prompts` |
 | TA-mcp-jsonrpc (`mcp-ta_012.tgz`) | 0.1.2 | `mcp:jsonrpc`, `mcp:stderr` |
-| TA-llmgateway (`ta-llmgateway_035.tgz`) | 0.3.5 | `llmgateway:bifrost`, `llmgateway:litellm` |
+| TA-llmgateway (`ta-llmgateway_037.tgz`) | 0.3.7 | `llmgateway:bifrost`, `llmgateway:litellm` |
 
 All TAs are auto-installed on `docker compose up` via `SPLUNK_APPS_URL`.
 
@@ -183,6 +183,8 @@ All TAs are auto-installed on `docker compose up` via `SPLUNK_APPS_URL`.
 ---
 
 ## LLM Gateways
+
+With Bifrost and LiteLLM in front of the lab, the SIEMulator isn't limited to the local Ollama model — both gateways support routing to hosted providers (Anthropic, OpenAI/ChatGPT, OpenRouter, and others) alongside or instead of Ollama. Add a provider's API key in the Bifrost UI (or as a new `model_list` entry with the provider's key in `litellm/config.yaml`) and the same MCP traffic, Splunk logging, and promptfoo/OWASP LLM Top 10 tests apply to that provider too — useful for comparing detection coverage across a local model and real hosted ones. Out of the box only Ollama is configured; wiring up an external provider requires supplying your own paid API key.
 
 ### Bifrost (port 8090)
 
@@ -435,7 +437,7 @@ The `ollamafunction.py` provides AI-enhanced Splunk querying from the OpenWebUI 
 - `splunk-uf-configs/` - Universal Forwarder file monitor config
 - `mcp-ta_012.tgz` - MCP Technology Add-on (v0.1.2)
 - `ta-ollama_015.tgz` - Ollama Technology Add-on (v0.1.5)
-- `ta-llmgateway_035.tgz` - LLM Gateway Technology Add-on (v0.3.5)
+- `ta-llmgateway_037.tgz` - LLM Gateway Technology Add-on (v0.3.7)
 
 ### Security Testing
 - `llmgateway-test.yaml` - OWASP LLM Top 10 tests via gateway
