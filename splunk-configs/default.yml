@@ -6,14 +6,23 @@ splunk:
     token: f4e45204-7cfa-48b5-bfbe-95cf03dbcad7
 
   indexes:
-    directories:
-      mcp:
-        datatype: event
-        homePath: $SPLUNK_DB/mcp/db
-        coldPath: $SPLUNK_DB/mcp/colddb
-        thawedPath: $SPLUNK_DB/mcp/thaweddb
-      llm:
-        datatype: event
-        homePath: $SPLUNK_DB/llm/db
-        coldPath: $SPLUNK_DB/llm/colddb
-        thawedPath: $SPLUNK_DB/llm/thaweddb
+    mcp:
+      datatype: event
+      homePath: $SPLUNK_DB/mcp/db
+      coldPath: $SPLUNK_DB/mcp/colddb
+      thawedPath: $SPLUNK_DB/mcp/thaweddb
+    llm:
+      datatype: event
+      homePath: $SPLUNK_DB/llm/db
+      coldPath: $SPLUNK_DB/llm/colddb
+      thawedPath: $SPLUNK_DB/llm/thaweddb
+    agent:
+      datatype: event
+      homePath: $SPLUNK_DB/agent/db
+      coldPath: $SPLUNK_DB/agent/colddb
+      thawedPath: $SPLUNK_DB/agent/thaweddb
+    llmgateway:
+      datatype: event
+      homePath: $SPLUNK_DB/llmgateway/db
+      coldPath: $SPLUNK_DB/llmgateway/colddb
+      thawedPath: $SPLUNK_DB/llmgateway/thaweddb
